@@ -28,9 +28,9 @@ import argparse
 import csv
 import os
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
 
 from PIL import Image
 
@@ -42,7 +42,7 @@ class Box:
     x_max: float
     y_max: float
 
-    def to_yolo(self, img_w: int, img_h: int) -> Tuple[float, float, float, float]:
+    def to_yolo(self, img_w: int, img_h: int) -> tuple[float, float, float, float]:
         # Convert to YOLO (x_center, y_center, width, height), normalized [0,1]
         x_center = (self.x_min + self.x_max) / 2.0
         y_center = (self.y_min + self.y_max) / 2.0
@@ -56,11 +56,11 @@ class Box:
         )
 
 
-def parse_boxes_string(s: str) -> List[Box]:
+def parse_boxes_string(s: str) -> list[Box]:
     s = (s or "").strip()
     if not s:
         return []
-    boxes: List[Box] = []
+    boxes: list[Box] = []
     for token in s.split(";"):
         token = token.strip()
         if not token:
@@ -80,8 +80,8 @@ def parse_boxes_string(s: str) -> List[Box]:
     return boxes
 
 
-def read_split_csv(csv_path: Path) -> Dict[str, List[Box]]:
-    mapping: Dict[str, List[Box]] = {}
+def read_split_csv(csv_path: Path) -> dict[str, list[Box]]:
+    mapping: dict[str, list[Box]] = {}
     if not csv_path.exists():
         return mapping
     with csv_path.open("r", newline="") as f:
@@ -104,11 +104,11 @@ def ensure_dir(path: Path) -> None:
 
 def write_yolo_labels_for_split(
     split_name: str,
-    img_to_boxes: Dict[str, List[Box]],
+    img_to_boxes: dict[str, list[Box]],
     images_dir: Path,
     out_root: Path,
     symlink: bool = True,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     images_out = out_root / "images" / split_name
     labels_out = out_root / "labels" / split_name
     ensure_dir(images_out)
@@ -147,7 +147,7 @@ def write_yolo_labels_for_split(
 
         # Write labels
         label_dst = labels_out / (Path(img_name).with_suffix(".txt").name)
-        lines: List[str] = []
+        lines: list[str] = []
         for b in boxes:
             x, y, w, h = b.to_yolo(img_w, img_h)
             # Clip to [0,1]
@@ -188,8 +188,15 @@ def write_data_yaml(out_root: Path, dataset_root: Path, include_test: bool) -> N
 
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Convert GWHD 2021 to YOLO format")
-    parser.add_argument("--src", type=str, default=str(Path.cwd() / "datasets" / "gwhd_2021"), help="Source GWHD directory")
-    parser.add_argument("--out-dir", type=str, default=str(Path.cwd() / "datasets" / "gwhd_2021_yolo"), help="Output directory for YOLO dataset")
+    parser.add_argument(
+        "--src", type=str, default=str(Path.cwd() / "datasets" / "gwhd_2021"), help="Source GWHD directory"
+    )
+    parser.add_argument(
+        "--out-dir",
+        type=str,
+        default=str(Path.cwd() / "datasets" / "gwhd_2021_yolo"),
+        help="Output directory for YOLO dataset",
+    )
     parser.add_argument("--copy", action="store_true", help="Copy images instead of symlinking")
     args = parser.parse_args(list(argv) if argv is not None else None)
 
@@ -212,7 +219,9 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     # Write splits
     print("Writing train split...")
-    n_img_train, n_box_train = write_yolo_labels_for_split("train", train_map, images_dir, out_root, symlink=(not args.copy))
+    n_img_train, n_box_train = write_yolo_labels_for_split(
+        "train", train_map, images_dir, out_root, symlink=(not args.copy)
+    )
     print(f"Train: {n_img_train} images, {n_box_train} boxes")
 
     print("Writing val split...")
@@ -222,7 +231,9 @@ def main(argv: Iterable[str] | None = None) -> int:
     include_test = len(test_map) > 0
     if include_test:
         print("Writing test split...")
-        n_img_test, n_box_test = write_yolo_labels_for_split("test", test_map, images_dir, out_root, symlink=(not args.copy))
+        n_img_test, n_box_test = write_yolo_labels_for_split(
+            "test", test_map, images_dir, out_root, symlink=(not args.copy)
+        )
         print(f"Test: {n_img_test} images, {n_box_test} boxes")
 
     # Write data.yaml
@@ -235,8 +246,3 @@ def main(argv: Iterable[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
-
-
-
