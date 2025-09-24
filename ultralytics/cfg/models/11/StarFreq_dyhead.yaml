@@ -16,7 +16,7 @@ scales: # model compound scaling constants, i.e. 'model=yolo11n.yaml' will call 
 # YOLO11n backbone with StarNet
 backbone:
   # [from, repeats, module, args]
-  - [-1, 1, starnet_s050, []]  # 4
+  - [-1, 1, starnet_s050, []] # 4
   - [-1, 1, SPPF, [1024, 5]] # 5
   - [-1, 2, C2PSA, [1024]] # 6
 

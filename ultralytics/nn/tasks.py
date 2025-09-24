@@ -10,8 +10,6 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from .ADDModules import *
-
 from ultralytics.nn.autobackend import check_class_names
 from ultralytics.nn.modules import (
     AIFI,
@@ -95,6 +93,8 @@ from ultralytics.utils.torch_utils import (
     time_sync,
 )
 
+from .ADDModules import *
+
 
 class BaseModel(torch.nn.Module):
     """
@@ -165,14 +165,14 @@ class BaseModel(torch.nn.Module):
                 x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
             if profile:
                 self._profile_one_layer(m, x, dt)
-            if hasattr(m, 'backbone'):
+            if hasattr(m, "backbone"):
                 x = m(x)
                 if len(x) != 5:  # 0 - 5
                     x.insert(0, None)
                 for index, i in enumerate(x):
                     if index in self.save:
                         y.append(i)
-                    else:   
+                    else:
                         y.append(None)
                 x = x[-1]  # 最后一个输出传给下一层
             else:
@@ -185,7 +185,6 @@ class BaseModel(torch.nn.Module):
                 if m.i == max(embed):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
         return x
-
 
     def _predict_augment(self, x):
         """Perform augmentations on input image x and return augmented inference."""
@@ -403,7 +402,9 @@ class DetectionModel(BaseModel):
 
         # Build strides
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Detect_dyhead)):  # includes all Detect subclasses like Segment, Pose, OBB, YOLOEDetect, YOLOESegment
+        if isinstance(
+            m, (Detect, Detect_dyhead)
+        ):  # includes all Detect subclasses like Segment, Pose, OBB, YOLOEDetect, YOLOESegment
             s = 256  # 2x min stride
             m.inplace = self.inplace
 
@@ -417,9 +418,10 @@ class DetectionModel(BaseModel):
                 m.stride = torch.tensor([s / x.shape[-2] for x in _forward(torch.zeros(1, ch, s, s))])  # forward on CPU
             except RuntimeError:
                 try:
-                    self.model.to(torch.device('cuda'))
-                    m.stride = torch.tensor([s / x.shape[-2] for x in _forward(
-                        torch.zeros(1, ch, s, s).to(torch.device('cuda')))])  # forward on CUDA
+                    self.model.to(torch.device("cuda"))
+                    m.stride = torch.tensor(
+                        [s / x.shape[-2] for x in _forward(torch.zeros(1, ch, s, s).to(torch.device("cuda")))]
+                    )  # forward on CUDA
                 except RuntimeError as error:
                     raise error
 
@@ -1625,11 +1627,10 @@ def parse_model(d, ch, verbose=True):
     )
 
     backbone = False
-    
-    for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
 
-        t=m
-        
+    for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
+        t = m
+
         m = (
             getattr(torch.nn, m[3:])
             if "nn." in m
@@ -1679,7 +1680,18 @@ def parse_model(d, ch, verbose=True):
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
         elif m in frozenset(
-            {Detect, WorldDetect, YOLOEDetect, Segment, YOLOESegment, Pose, OBB, ImagePoolingAttn, v10Detect, Detect_dyhead}
+            {
+                Detect,
+                WorldDetect,
+                YOLOEDetect,
+                Segment,
+                YOLOESegment,
+                Pose,
+                OBB,
+                ImagePoolingAttn,
+                v10Detect,
+                Detect_dyhead,
+            }
         ):
             args.append([ch[x] for x in f])
             if m is Segment or m is YOLOESegment:
@@ -1693,15 +1705,22 @@ def parse_model(d, ch, verbose=True):
             c2 = args[0]
             c1 = ch[f]
             args = [c1, c2, *args[1:]]
-            
-        elif m in {starnet_s050, starnet_s100, starnet_s150, starnet_s1, starnet_s2, starnet_s3, starnet_s4,}:
+
+        elif m in {
+            starnet_s050,
+            starnet_s100,
+            starnet_s150,
+            starnet_s1,
+            starnet_s2,
+            starnet_s3,
+            starnet_s4,
+        }:
             m = m(*args)
             c2 = m.channel
 
         elif m in {FreqFusion}:
             c2 = ch[f[0]]
             args = [[ch[x] for x in f], *args]
-
 
         elif m is CBFuse:
             c2 = ch[f[-1]]
@@ -1718,13 +1737,14 @@ def parse_model(d, ch, verbose=True):
             m_.backbone = True
         else:
             m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-            t = str(m)[8:-2].replace('__main__.', '')  # module type
+            t = str(m)[8:-2].replace("__main__.", "")  # module type
         m.np = sum(x.numel() for x in m_.parameters())  # number params
         m_.i, m_.f, m_.type = i + 4 if backbone else i, f, t  # attach index, 'from' index, type
         if verbose:
-            LOGGER.info(f'{i:>3}{str(f):>20}{n_:>3}{m.np:10.0f}  {t:<45}{str(args):<30}')  # print
-        save.extend(x % (i + 4 if backbone else i) for x in ([f] if isinstance(f, int) else f) if
-                    x != -1)  # append to savelist
+            LOGGER.info(f"{i:>3}{str(f):>20}{n_:>3}{m.np:10.0f}  {t:<45}{str(args):<30}")  # print
+        save.extend(
+            x % (i + 4 if backbone else i) for x in ([f] if isinstance(f, int) else f) if x != -1
+        )  # append to savelist
         layers.append(m_)
         if i == 0:
             ch = []
