@@ -290,7 +290,7 @@ class BaseModel(torch.nn.Module):
         self = super()._apply(fn)
         m = self.model[-1]  # Detect()
         if isinstance(
-            m, (Detect, Detect_dyhead)
+            m, (Detect, Detect_dyhead, Detect_AFPN3, Detect_AFPN4)
         ):  # includes all Detect subclasses like Segment, Pose, OBB, WorldDetect, YOLOEDetect, YOLOESegment
             m.stride = fn(m.stride)
             m.anchors = fn(m.anchors)
@@ -403,7 +403,7 @@ class DetectionModel(BaseModel):
 
         # Build strides
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Detect_dyhead)):  # includes all Detect subclasses like Segment, Pose, OBB, YOLOEDetect, YOLOESegment
+        if isinstance(m, (Detect, Detect_dyhead, Detect_AFPN3, Detect_AFPN4)):  # includes all Detect subclasses like Segment, Pose, OBB, YOLOEDetect, YOLOESegment
             s = 256  # 2x min stride
             m.inplace = self.inplace
 
@@ -1679,7 +1679,7 @@ def parse_model(d, ch, verbose=True):
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
         elif m in frozenset(
-            {Detect, WorldDetect, YOLOEDetect, Segment, YOLOESegment, Pose, OBB, ImagePoolingAttn, v10Detect, Detect_dyhead}
+            {Detect, WorldDetect, YOLOEDetect, Segment, YOLOESegment, Pose, OBB, ImagePoolingAttn, v10Detect, Detect_dyhead, Detect_AFPN3, Detect_AFPN4}
         ):
             args.append([ch[x] for x in f])
             if m is Segment or m is YOLOESegment:
@@ -1702,6 +1702,12 @@ def parse_model(d, ch, verbose=True):
             c2 = ch[f[0]]
             args = [[ch[x] for x in f], *args]
 
+        elif m in {LAE}:
+            c2 = ch[f]
+            args = [c2, *args]
+
+        elif m in {DyT}:
+            args = [*args]
 
         elif m is CBFuse:
             c2 = ch[f[-1]]
@@ -1732,6 +1738,8 @@ def parse_model(d, ch, verbose=True):
                 ch.extend(c2)
                 for _ in range(5 - len(ch)):
                     ch.insert(0, 0)
+            else:
+                ch.append(c2)
         else:
             ch.append(c2)
 
@@ -1824,7 +1832,7 @@ def guess_model_task(model):
                 return "pose"
             elif isinstance(m, OBB):
                 return "obb"
-            elif isinstance(m, (Detect, WorldDetect, YOLOEDetect, v10Detect, Detect_dyhead)):
+            elif isinstance(m, (Detect, WorldDetect, YOLOEDetect, v10Detect, Detect_dyhead, Detect_AFPN3, Detect_AFPN4)):
                 return "detect"
 
     # Guess from model filename

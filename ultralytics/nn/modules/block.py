@@ -11,6 +11,7 @@ from ultralytics.utils.torch_utils import fuse_conv_and_bn
 
 from .conv import Conv, DWConv, GhostConv, LightConv, RepConv, autopad
 from .transformer import TransformerBlock
+from .DyT import DyT
 
 __all__ = (
     "DFL",
@@ -469,30 +470,22 @@ class GhostBottleneck(nn.Module):
 
 class Bottleneck(nn.Module):
     """Standard bottleneck."""
-
-    def __init__(
-        self, c1: int, c2: int, shortcut: bool = True, g: int = 1, k: tuple[int, int] = (3, 3), e: float = 0.5
-    ):
-        """
-        Initialize a standard bottleneck module.
-
-        Args:
-            c1 (int): Input channels.
-            c2 (int): Output channels.
-            shortcut (bool): Whether to use shortcut connection.
-            g (int): Groups for convolutions.
-            k (tuple): Kernel sizes for convolutions.
-            e (float): Expansion ratio.
-        """
+ 
+    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
+        """Initializes a standard bottleneck module with optional shortcut connection and configurable parameters."""
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
         self.cv1 = Conv(c1, c_, k[0], 1)
         self.cv2 = Conv(c_, c2, k[1], 1, g=g)
         self.add = shortcut and c1 == c2
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.dyt = DyT(c2, 0.85)
+        
+    def forward(self, x):
         """Apply bottleneck with optional shortcut connection."""
-        return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
+        #return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
+
+        """Applies the YOLO FPN to input data."""
+        return x + self.dyt(self.cv2(self.cv1(x))) if self.add else self.dyt(self.cv2(self.cv1(x)))
 
 
 class BottleneckCSP(nn.Module):
@@ -1513,7 +1506,7 @@ class C2PSA(nn.Module):
         self.cv1 = Conv(c1, 2 * self.c, 1, 1)
         self.cv2 = Conv(2 * self.c, c1, 1)
 
-        self.m = nn.Sequential(*(PSABlock(self.c, attn_ratio=0.5, num_heads=self.c // 64) for _ in range(n)))
+        self.m = nn.Sequential(*(PSABlock(self.c, attn_ratio=0.5, num_heads=max(1, self.c // 64)) for _ in range(n)))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
